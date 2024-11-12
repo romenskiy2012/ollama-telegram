@@ -11,14 +11,22 @@ from functools import wraps
 from dotenv import load_dotenv
 load_dotenv()
 token = os.getenv("TOKEN")
-allowed_ids = list(map(int, os.getenv("USER_IDS", "").split(",")))
-admin_ids = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
+try:
+    allowed_ids = list(map(int, os.getenv("USER_IDS", "").split(",")))
+    admin_ids = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
+except:
+    print('.env - no file, either the USER_IDS or ADMIN_IDS field is configured incorrectly.')
+    exit(1)
 ollama_base_url = os.getenv("OLLAMA_BASE_URL")
 ollama_port = os.getenv("OLLAMA_PORT", "11434")
 log_level_str = os.getenv("LOG_LEVEL", "INFO")
 allow_all_users_in_groups = bool(int(os.getenv("ALLOW_ALL_USERS_IN_GROUPS", "0")))
 log_levels = list(logging._levelToName.values())
 timeout = os.getenv("TIMEOUT", "3000")
+if (token or ollama_base_url or ollama_port or log_level_str or allow_all_users_in_groups or log_levels or timeout == ""):
+    print('.env - no file, or it is configured incorrectly.')
+    exit(1)
+
 if log_level_str not in log_levels:
     log_level = logging.DEBUG
 else:

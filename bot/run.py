@@ -9,6 +9,7 @@ import traceback
 import io
 import base64
 import sqlite3
+import func.db
 bot = Bot(token=token)
 dp = Dispatcher()
 start_kb = InlineKeyboardBuilder()
@@ -48,48 +49,13 @@ selected_prompt_id = None  # Variable to store the selected prompt ID
 CHAT_TYPE_GROUP = "group"
 CHAT_TYPE_SUPERGROUP = "supergroup"
 
-def init_db():
-    conn = sqlite3.connect('users.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY, name TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS chats
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id INTEGER,
-                  role TEXT,
-                  content TEXT,
-                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (user_id) REFERENCES users(id))''')
-    c.execute('''CREATE TABLE IF NOT EXISTS system_prompts
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id INTEGER,
-                  prompt TEXT,
-                  is_global BOOLEAN,
-                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                  FOREIGN KEY (user_id) REFERENCES users(id))''')
-    conn.commit()
-    conn.close()
 
-def register_user(user_id, user_name):
-    conn = sqlite3.connect('users.db')
-    c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO users VALUES (?, ?)", (user_id, user_name))
-    conn.commit()
-    conn.close()
-
-def save_chat_message(user_id, role, content):
-    conn = sqlite3.connect('users.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO chats (user_id, role, content) VALUES (?, ?, ?)",
-              (user_id, role, content))
-    conn.commit()
-    conn.close()
 
 @dp.callback_query(lambda query: query.data == "register")
 async def register_callback_handler(query: types.CallbackQuery):
     user_id = query.from_user.id
     user_name = query.from_user.full_name
-    register_user(user_id, user_name)
+    func.db.register_user(user_id, user_name)
     await query.answer("You have been registered successfully!")
 
 async def get_bot_info():
@@ -464,7 +430,7 @@ async def ollama_request(message: types.Message, prompt: str = None):
                     logging.warning(f"Selected prompt ID {selected_prompt_id} not found for user {message.from_user.id}")
 
         # Save the user's message
-        save_chat_message(message.from_user.id, "user", prompt)
+        func.db.save_chat_message(message.from_user.id, "user", prompt)
 
         # Prepare the active chat with the system prompt
         await add_prompt_to_active_chats(message, prompt, image_base64, modelname, system_prompt)
@@ -486,7 +452,7 @@ async def ollama_request(message: types.Message, prompt: str = None):
 
             if any([c in chunk for c in ".\n!?"]) or response_data.get("done"):
                 if await handle_response(message, response_data, full_response):
-                    save_chat_message(message.from_user.id, "assistant", full_response)
+                    func.db.save_chat_message(message.from_user.id, "assistant", full_response)
                     break
 
     except Exception as e:
@@ -498,7 +464,7 @@ async def ollama_request(message: types.Message, prompt: str = None):
         )
 
 async def main():
-    init_db()
+    func.db.init_db()
     allowed_ids = load_allowed_ids_from_db()
     print(f"allowed_ids: {allowed_ids}")
     await bot.set_my_commands(commands)
